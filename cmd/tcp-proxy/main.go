@@ -18,17 +18,18 @@ var (
 	connid  = uint64(0)
 	logger  proxy.ColorLogger
 
-	localAddr   = flag.String("l", ":9999", "local address")
-	remoteAddr  = flag.String("r", "localhost:80", "remote address")
-	verbose     = flag.Bool("v", false, "display server actions")
-	veryverbose = flag.Bool("vv", false, "display server actions and all tcp data")
-	nagles      = flag.Bool("n", false, "disable nagles algorithm")
-	hex         = flag.Bool("h", false, "output hex")
-	colors      = flag.Bool("c", false, "output ansi colors")
-	isDaemon    = flag.Bool("d", false, "run as daemon")
-	unwrapTLS   = flag.Bool("unwrap-tls", false, "remote connection with TLS exposed unencrypted locally")
-	match       = flag.String("match", "", "match regex (in the form 'regex')")
-	replace     = flag.String("replace", "", "replace regex (in the form 'regex~replacer')")
+	localAddr    = flag.String("l", ":9999", "local address")
+	remoteAddr   = flag.String("r", "localhost:80", "remote address")
+	verbose      = flag.Bool("v", false, "display server actions")
+	veryverbose  = flag.Bool("vv", false, "display server actions and all tcp data")
+	nagles       = flag.Bool("n", false, "disable nagles algorithm")
+	hex          = flag.Bool("h", false, "output hex")
+	colors       = flag.Bool("c", false, "output ansi colors")
+	isDaemon     = flag.Bool("d", false, "run as daemon")
+	unwrapTLS    = flag.Bool("unwrap-tls", false, "remote connection with TLS exposed unencrypted locally")
+	match        = flag.String("match", "", "match regex (in the form 'regex')")
+	replace      = flag.String("replace", "", "replace regex (in the form 'regex~replacer')")
+	whiteListIps = flag.String("w", "localhost", "whitelist ips")
 )
 
 func main() {
@@ -95,6 +96,10 @@ func main() {
 			logger.Warn("Failed to accept connection '%s'", err)
 			continue
 		}
+		if !isWhitelist(*whiteListIps, conn.RemoteAddr().String()) {
+			logger.Warn("Failed to Whitelist '%s' '%s'", whiteListIps, conn.RemoteAddr().String())
+			continue
+		}
 		connid++
 
 		var p *proxy.Proxy
@@ -113,12 +118,21 @@ func main() {
 		p.Log = proxy.ColorLogger{
 			Verbose:     *verbose,
 			VeryVerbose: *veryverbose,
-			Prefix:      fmt.Sprintf("Connection #%03d ", connid),
+			Prefix:      fmt.Sprintf("Connection #%03d Remote: %s >>> ", connid, conn.RemoteAddr().String()),
 			Color:       *colors,
 		}
 
 		go p.Start()
 	}
+}
+
+func isWhitelist(list, ip string) bool {
+	if list == "" {
+		return true
+	}
+	rawIp := strings.Split(ip, ":")[0]
+	fmt.Printf("whitelist '%s' ip '%s'\n", list, rawIp)
+	return strings.Contains(list, rawIp)
 }
 
 func createMatcher(match string) func([]byte) {
