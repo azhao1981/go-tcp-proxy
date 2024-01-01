@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	proxy "github.com/jpillora/go-tcp-proxy"
+	"github.com/sevlyar/go-daemon"
 )
 
 var (
@@ -24,6 +25,7 @@ var (
 	nagles      = flag.Bool("n", false, "disable nagles algorithm")
 	hex         = flag.Bool("h", false, "output hex")
 	colors      = flag.Bool("c", false, "output ansi colors")
+	isDaemon    = flag.Bool("d", false, "run as daemon")
 	unwrapTLS   = flag.Bool("unwrap-tls", false, "remote connection with TLS exposed unencrypted locally")
 	match       = flag.String("match", "", "match regex (in the form 'regex')")
 	replace     = flag.String("replace", "", "replace regex (in the form 'regex~replacer')")
@@ -31,6 +33,31 @@ var (
 
 func main() {
 	flag.Parse()
+
+	if *isDaemon {
+		cntxt := &daemon.Context{
+			PidFileName: "/tmp/tcp-proxy.pid",
+			PidFilePerm: 0644,
+			LogFileName: "/tmp/tcp-proxy.log",
+			LogFilePerm: 0640,
+			WorkDir:     "./",
+			Umask:       027,
+			Args:        []string{"[tcp-proxy]"},
+		}
+
+		d, err := cntxt.Reborn()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Unable to run: ", err)
+			os.Exit(1)
+		}
+		if d != nil {
+			return
+		}
+		defer cntxt.Release()
+
+		fmt.Fprintln(os.Stdout, "Daemon started")
+
+	}
 
 	logger := proxy.ColorLogger{
 		Verbose: *verbose,
